@@ -1,0 +1,11 @@
+{
+  "name": "modern-3d-font-generator",
+  "version": "1.0.0",
+  "description": "A beautiful modern 3D font generator for creating custom sign designs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "TeXmExDeX Type Tools",
+  "license": "MIT"
+}
