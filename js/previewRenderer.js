@@ -1,10 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /**
  * Preview Renderer
@@ -16,20 +11,13 @@ class PreviewRenderer {
         this.scene = null;
         this.camera = null;
         this.renderer = null;
-        this.composer = null; // Effect composer for post-processing
         this.controls = null;
         this.currentModel = null;
         this.wireframeMode = false;
         this.frontColor = "#ffffff"; // Default front face color
         this.animationFrameId = null;
-        this.bloomStrength = 0.8; // Increased bloom strength back up
-        this.bloomRadius = 0.3; // Increased bloom radius
-        this.bloomThreshold = 0.1; // Lower threshold to work with all colors
-        
-        // Removed pulsing glow effect variables
         
         this.initRenderer();
-        this.setupPostProcessing();
         this.animate();
         this.handleResize();
         this.initControlButtons();
@@ -81,23 +69,36 @@ class PreviewRenderer {
      * Create a night sky background using a simpler approach
      */
     createNightSkyBackground() {
-        // Use dark space color for the entire background
-        const spaceColor = new THREE.Color(0x000011); // Dark space blue
+        // Create a gradient background using a simple textured plane
+        const topColor = new THREE.Color(0x000022); // Dark night blue
+        const bottomColor = new THREE.Color(0x72c5fb); // Light blue (horizon)
+        
+        // Create a canvas for the gradient
+        const canvas = document.createElement('canvas');
+        canvas.width = 2;
+        canvas.height = 512;
+        const context = canvas.getContext('2d');
+        
+        // Create gradient
+        const gradient = context.createLinearGradient(0, 0, 0, 512);
+        gradient.addColorStop(0, topColor.getStyle());
+        gradient.addColorStop(1, bottomColor.getStyle());
+        
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 2, 512);
+        
+        // Create texture and material
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
         
         // Create a large dome for the sky
-        const skyGeometry = new THREE.SphereGeometry(1000, 32, 32);
-        const skyMaterial = new THREE.MeshBasicMaterial({ 
-            color: spaceColor,
-            side: THREE.BackSide
-        });
-        
-        const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+        const skyGeometry = new THREE.SphereGeometry(1000, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+        const sky = new THREE.Mesh(skyGeometry, material);
+        sky.rotation.x = Math.PI; // Flip so gradient is right way up
         this.scene.add(sky);
         
-        // Add stars to the entire night sky
+        // Add stars to the night sky
         this.addStars();
-        
-        // Water surface removed
     }
     
     /**
@@ -113,14 +114,18 @@ class PreviewRenderer {
             sizeAttenuation: false
         });
         
-        // Generate random stars positions throughout the entire sphere
+        // Generate random stars positions
         const starVertices = [];
-        for (let i = 0; i < 3000; i++) {
+        for (let i = 0; i < 2000; i++) {
+            // Place stars in upper hemisphere only
             const x = (Math.random() - 0.5) * 2000;
-            const y = (Math.random() - 0.5) * 2000; // Stars everywhere (not just upper hemisphere)
+            const y = Math.random() * 500; // Positive Y is up
             const z = (Math.random() - 0.5) * 2000;
             
-            starVertices.push(x, y, z);
+            // Don't place stars near the horizon
+            if (y > 50) {
+                starVertices.push(x, y, z);
+            }
         }
         
         starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
@@ -137,9 +142,9 @@ class PreviewRenderer {
         });
         
         const brightStarVertices = [];
-        for (let i = 0; i < 100; i++) {
+        for (let i = 0; i < 50; i++) {
             const x = (Math.random() - 0.5) * 2000;
-            const y = (Math.random() - 0.5) * 2000; // Throughout the sphere
+            const y = 100 + Math.random() * 400; // Higher up in the sky
             const z = (Math.random() - 0.5) * 2000;
             brightStarVertices.push(x, y, z);
         }
@@ -212,33 +217,30 @@ class PreviewRenderer {
      * Add lights to the scene
      */
     addLights() {
-        // Ambient light - subtle overall illumination
-        const ambientLight = new THREE.AmbientLight(0x222233, 0.3);
+        // Ambient light - slightly brighter to better show materials
+        const ambientLight = new THREE.AmbientLight(0x333355, 0.4);
         this.scene.add(ambientLight);
         
-        // Add main spotlight from front-top with moderate intensity
-        const mainSpotLight = new THREE.SpotLight(0xffffff, 0.6);
-        mainSpotLight.position.set(0, 200, 300);
-        mainSpotLight.angle = Math.PI / 5;
-        mainSpotLight.penumbra = 0.5;
-        mainSpotLight.decay = 1.5;
-        mainSpotLight.distance = 1000;
-        mainSpotLight.castShadow = false;
-        this.scene.add(mainSpotLight);
+        // Add a spotlight from above for dramatic lighting
+        const spotLight = new THREE.SpotLight(0xCCDDFF, 1.0);
+        spotLight.position.set(0, 300, 200);
+        spotLight.angle = Math.PI / 6;
+        spotLight.penumbra = 0.3;
+        spotLight.decay = 1.5;
+        spotLight.distance = 1000;
+        spotLight.castShadow = false; // Disable shadow casting
         
-        // Add a subtle blue rim light from behind
-        const rimLight = new THREE.DirectionalLight(0x6070ff, 0.3);
-        rimLight.position.set(0, 100, -200);
-        this.scene.add(rimLight);
+        this.scene.add(spotLight);
         
-        // Very subtle side lights
-        const rightLight = new THREE.DirectionalLight(0xffffff, 0.2);
-        rightLight.position.set(200, 50, 100);
-        this.scene.add(rightLight);
+        // Add a subtle blue fill light from below for the neon effect
+        const fillLight = new THREE.PointLight(0x4444ff, 0.6, 300);
+        fillLight.position.set(0, -50, 100);
+        this.scene.add(fillLight);
         
-        const leftLight = new THREE.DirectionalLight(0xffffff, 0.2);
-        leftLight.position.set(-200, 50, 100);
-        this.scene.add(leftLight);
+        // Add a key light from the front-right to create highlights
+        const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        keyLight.position.set(100, 50, 200);
+        this.scene.add(keyLight);
     }
 
     /**
@@ -253,11 +255,6 @@ class PreviewRenderer {
             this.camera.updateProjectionMatrix();
             
             this.renderer.setSize(width, height);
-            
-            // Update composer size if it exists
-            if (this.composer) {
-                this.composer.setSize(width, height);
-            }
         });
     }
 
@@ -270,13 +267,8 @@ class PreviewRenderer {
         // Update controls
         this.controls.update();
         
-        // Render using the post-processing composer instead of direct renderer
-        if (this.composer && !this.renderer.xr.isPresenting) {
-            this.composer.render();
-        } else {
-            // Fallback to regular rendering when composer isn't available or in XR mode
-            this.renderer.render(this.scene, this.camera);
-        }
+        // Render scene
+        this.renderer.render(this.scene, this.camera);
     }
     
     /**
@@ -299,7 +291,7 @@ class PreviewRenderer {
             console.log("PreviewRenderer animation resumed");
         }
     }
-    
+
     /**
      * Update the 3D model in the preview
      * @param {THREE.Group} model - The new model to display
@@ -310,39 +302,30 @@ class PreviewRenderer {
             this.scene.remove(this.currentModel);
         }
         
-        // Remove any existing lighting effects
-        if (this.illuminationEffect) {
-            this.scene.remove(this.illuminationEffect);
-            this.illuminationEffect = null;
+        // Remove any existing glow
+        if (this.glowEffect) {
+            this.scene.remove(this.glowEffect);
+            this.glowEffect = null;
         }
         
         // Add the new model
         if (model) {
             this.currentModel = model;
             
-            // Keep the model at the center of the scene
-            this.currentModel.position.set(0, 0, 0);
-            
-            // Create illuminated front face material with moderate emissive glow and sharp edges
-            const frontMaterial = new THREE.MeshPhysicalMaterial({
-                color: 0xffffff, // Always white
-                metalness: 0.1,
-                roughness: 0.05, // Reduced roughness for crisper edges
-                reflectivity: 0.8,
-                emissive: 0xffffff, // Also white emissive for default
-                emissiveIntensity: 0.8, // Moderate intensity for less overall brightness
-                clearcoat: 1.0,
-                clearcoatRoughness: 0 // Completely smooth clearcoat for crisp reflections
+            // Force front face to be glossy white
+            const frontMaterial = new THREE.MeshPhongMaterial({
+                color: 0xffffff,
+                specular: 0x888888,
+                shininess: 80,
+                reflectivity: 0.8
             });
             
-            // Glossy black side material with high reflectivity for sides and back
-            const blackSideMaterial = new THREE.MeshPhysicalMaterial({ 
+            // Black side material with more intense metallic, glossy finish
+            const blackSideMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0x000000,
-                metalness: 1.0, // Fully metallic for sharper edges
-                roughness: 0.05, // Very smooth
-                reflectivity: 1.0,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0 // Completely smooth clearcoat
+                specular: 0x999999,
+                shininess: 120,
+                reflectivity: 1.0
             });
             
             // Apply materials to all meshes
@@ -358,10 +341,10 @@ class PreviewRenderer {
                         // - Index 1 is the side material (extrusion)
                         for (let i = 0; i < child.material.length; i++) {
                             if (i === 0) {
-                                // Front face - illuminated with strong emission
+                                // Front face - force white color
                                 materials.push(frontMaterial);
                             } else {
-                                // All other faces - highly glossy black
+                                // All other faces - use black material
                                 materials.push(blackSideMaterial);
                             }
                         }
@@ -378,55 +361,9 @@ class PreviewRenderer {
             // Add the model to the scene
             this.scene.add(this.currentModel);
             
-            // Add direct illumination effects
-            this.addIlluminationEffect();
-            
             // Reset camera position for a good view of the model
             this.resetCameraView();
         }
-    }
-    
-    /**
-     * Add illumination effect to highlight the front faces
-     */
-    addIlluminationEffect() {
-        if (!this.currentModel) return;
-        
-        // Get the base color from the current front color
-        let illuminationColor;
-        if (this.frontColor && this.frontColor !== "#ffffff") {
-            // Use the selected front color for illumination
-            illuminationColor = new THREE.Color(this.frontColor);
-            
-            // Calculate the brightness
-            const brightness = illuminationColor.r * 0.299 + illuminationColor.g * 0.587 + illuminationColor.b * 0.114;
-            
-            // Boost dark colors slightly to ensure they create visible illumination
-            if (brightness < 0.3) {
-                illuminationColor.multiplyScalar(1.5);
-            }
-        } else {
-            // Default to a purple glow if no custom color is set
-            illuminationColor = new THREE.Color(0x6b46fe);
-        }
-        
-        // Create a group to hold all illumination effects
-        this.illuminationEffect = new THREE.Group();
-        
-        // Add front-facing spotlight with reduced intensity
-        const frontLight = new THREE.SpotLight(illuminationColor, 1.5, 300, Math.PI / 12, 0.6, 1);
-        frontLight.position.set(0, 0, 100);
-        frontLight.target = this.currentModel;
-        frontLight.castShadow = false;
-        this.illuminationEffect.add(frontLight);
-        
-        // Create a focused point light directly on the text face
-        const pointLight = new THREE.PointLight(illuminationColor, 0.8, 100);
-        pointLight.position.set(0, 0, 30);
-        this.illuminationEffect.add(pointLight);
-        
-        // Add the illumination effects to the scene
-        this.scene.add(this.illuminationEffect);
     }
     
     /**
@@ -448,14 +385,14 @@ class PreviewRenderer {
         
         // Calculate the distance based on the size
         const maxDim = Math.max(size.x, size.y, size.z);
-        const distance = maxDim * 2.0; // Increased to show more of the scene
+        const distance = maxDim * 1.5; // Adjust this multiplier as needed
         
-        // Set the camera at a standard front position
-        this.camera.position.set(0, 0, distance);
-        this.camera.lookAt(0, 0, 0);
+        // Move the camera to a position that shows the model well
+        this.camera.position.set(center.x, center.y, center.z + distance);
+        this.camera.lookAt(center);
         
-        // Update the controls target to the center of the scene
-        this.controls.target.set(0, 0, 0);
+        // Update the controls target to the center of the model
+        this.controls.target.copy(center);
         this.controls.update();
     }
 
@@ -507,24 +444,13 @@ class PreviewRenderer {
         // Store the front color for future use
         if (colorSettings.frontColor) {
             this.frontColor = colorSettings.frontColor;
-            const frontColorThree = new THREE.Color(colorSettings.frontColor);
             
-            // Calculate perceived brightness of the color (0-1)
-            const brightness = frontColorThree.r * 0.299 + frontColorThree.g * 0.587 + frontColorThree.b * 0.114;
-            
-            // For any color, use it directly as the emissive
-            const emissiveColor = frontColorThree.clone();
-            
-            // Create a new material with the chosen color and moderate glow
-            const newMaterial = new THREE.MeshPhysicalMaterial({
-                color: frontColorThree,
-                metalness: 0.1,
-                roughness: 0.05, // Keep reduced roughness for crisper edges
-                reflectivity: 0.8, 
-                emissive: emissiveColor, // Use the selected color for emissive
-                emissiveIntensity: 0.8, // Reduced intensity
-                clearcoat: 1.0,
-                clearcoatRoughness: 0 // Smooth clearcoat for crisp edges
+            // Create a new material with the chosen color - now glossy
+            const newMaterial = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(colorSettings.frontColor),
+                specular: 0x888888,
+                shininess: 80,
+                reflectivity: 0.8
             });
             
             // Update materials on all model meshes
@@ -533,54 +459,6 @@ class PreviewRenderer {
                     // Update only the front face material (index 0)
                     if (child.material[0]) {
                         child.material[0] = newMaterial;
-                    }
-                }
-            });
-            
-            // Update the illumination effect to match the new color
-            if (this.illuminationEffect) {
-                // Remove the existing illumination effect
-                this.scene.remove(this.illuminationEffect);
-                
-                // Recreate the illumination effect with the new color
-                this.addIlluminationEffect();
-            }
-            
-            // Adjust bloom parameters based on color brightness
-            if (this.bloomPass) {
-                // Higher threshold for crisper bloom edge
-                this.bloomPass.threshold = 0.4;
-                
-                // Lower strength for less blur and less brightness
-                this.bloomPass.strength = 0.3;
-                
-                // Lower radius for sharper bloom
-                this.bloomPass.radius = 0.2;
-            }
-        }
-        
-        // Update side color if provided
-        if (colorSettings.sideColor) {
-            const sideColorThree = new THREE.Color(colorSettings.sideColor);
-            
-            // Create a new glossy material for sides using MeshPhysicalMaterial
-            const newSideMaterial = new THREE.MeshPhysicalMaterial({
-                color: sideColorThree,
-                metalness: 1.0, // Fully metallic for sharp edges
-                roughness: 0.05, // Very smooth
-                reflectivity: 1.0,
-                clearcoat: 1.0,
-                clearcoatRoughness: 0 // Completely smooth clearcoat
-            });
-            
-            // Update materials on all model meshes
-            this.currentModel.traverse(child => {
-                if (child.isMesh && Array.isArray(child.material)) {
-                    // Update side materials (index 1+)
-                    for (let i = 1; i < child.material.length; i++) {
-                        if (child.material[i]) {
-                            child.material[i] = newSideMaterial;
-                        }
                     }
                 }
             });
@@ -593,45 +471,6 @@ class PreviewRenderer {
      */
     getCurrentModel() {
         return this.currentModel;
-    }
-
-    /**
-     * Set up post-processing with bloom effect
-     */
-    setupPostProcessing() {
-        // Get renderer size
-        const width = this.container.clientWidth;
-        const height = this.container.clientHeight;
-        const renderScene = new RenderPass(this.scene, this.camera);
-        
-        // Add bloom with reduced intensity
-        this.bloomStrength = 0.3; // Further reduced strength
-        this.bloomRadius = 0.2; // Keep sharp radius
-        this.bloomThreshold = 0.4; // Increased threshold to reduce bloom spread
-        
-        const bloomPass = new UnrealBloomPass(
-            new THREE.Vector2(width, height),
-            this.bloomStrength,
-            this.bloomRadius,
-            this.bloomThreshold
-        );
-        
-        // Configure the bloom effect
-        bloomPass.threshold = this.bloomThreshold;
-        bloomPass.strength = this.bloomStrength;
-        bloomPass.radius = this.bloomRadius;
-        
-        // Output pass to maintain colors
-        const outputPass = new OutputPass();
-        
-        // Set up composer with passes
-        this.composer = new EffectComposer(this.renderer);
-        this.composer.addPass(renderScene);
-        this.composer.addPass(bloomPass);
-        this.composer.addPass(outputPass);
-        
-        // Store the bloom pass for later adjustments
-        this.bloomPass = bloomPass;
     }
 }
 

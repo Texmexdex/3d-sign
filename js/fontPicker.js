@@ -257,11 +257,9 @@ class FontPicker {
         fontName.className = 'font-name';
         fontName.textContent = font.family || font.name;
         
-        // Instead of creating a separate preview element with sample text,
-        // we'll just style the font name to show the font
-        fontName.style.fontSize = '1.2rem';
-        fontName.style.color = 'var(--text-primary)';
-        fontName.style.marginBottom = '0';
+        const fontPreview = document.createElement('div');
+        fontPreview.className = 'font-preview';
+        fontPreview.textContent = 'The quick brown fox jumps over the lazy dog';
         
         // For local fonts, set the font family directly
         const isLocalFont = font.isLocal || (font.url && font.url.startsWith('assets/fonts/'));
@@ -270,57 +268,58 @@ class FontPicker {
             // For bundled fonts that we have direct access to
             if (font.url && font.url.includes('Roboto')) {
                 if (font.url.includes('Bold')) {
-                    fontName.style.fontFamily = 'Roboto, sans-serif';
-                    fontName.style.fontWeight = 'bold';
+                    fontPreview.style.fontFamily = 'Roboto, sans-serif';
+                    fontPreview.style.fontWeight = 'bold';
                 } else if (font.url.includes('Light')) {
-                    fontName.style.fontFamily = 'Roboto, sans-serif';
-                    fontName.style.fontWeight = '300';
+                    fontPreview.style.fontFamily = 'Roboto, sans-serif';
+                    fontPreview.style.fontWeight = '300';
                 } else {
-                    fontName.style.fontFamily = 'Roboto, sans-serif';
+                    fontPreview.style.fontFamily = 'Roboto, sans-serif';
                 }
             } else if (font.url && font.url.includes('Ubuntu')) {
                 // Handle Ubuntu fonts
                 if (font.url.includes('Bold')) {
-                    fontName.style.fontWeight = 'bold';
+                    fontPreview.style.fontWeight = 'bold';
                 }
                 if (font.url.includes('Italic')) {
-                    fontName.style.fontStyle = 'italic';
+                    fontPreview.style.fontStyle = 'italic';
                 }
                 if (font.url.includes('Mono')) {
-                    fontName.style.fontFamily = 'Ubuntu Mono, monospace';
+                    fontPreview.style.fontFamily = 'Ubuntu Mono, monospace';
                 } else {
-                    fontName.style.fontFamily = 'Ubuntu, sans-serif';
+                    fontPreview.style.fontFamily = 'Ubuntu, sans-serif';
                 }
             } else {
                 // For other local fonts, use the family name directly
-                fontName.style.fontFamily = `"${font.family || font.name}", sans-serif`;
+                fontPreview.style.fontFamily = `"${font.family || font.name}", sans-serif`;
             }
             
             this.loadedPreviewFonts.add(font.family || font.name);
         } else {
             // For Google Fonts, load them dynamically
-            fontName.style.fontFamily = `"${font.family || font.name}", sans-serif`;
+            fontPreview.style.fontFamily = `"${font.family || font.name}", sans-serif`;
             
             // Load font for preview if not already loaded
             if (!this.loadedPreviewFonts.has(font.family || font.name)) {
                 // Apply a default font initially
-                fontName.style.fontFamily = 'sans-serif';
+                fontPreview.style.fontFamily = 'sans-serif';
                 
                 // Load the font
                 this.googleFontsManager.loadFont(font.family || font.name)
                     .then(() => {
-                        fontName.style.fontFamily = `"${font.family || font.name}", sans-serif`;
+                        fontPreview.style.fontFamily = `"${font.family || font.name}", sans-serif`;
                         this.loadedPreviewFonts.add(font.family || font.name);
                     })
                     .catch(err => {
                         console.error(`Failed to load font preview for ${font.family || font.name}:`, err);
                         // Set a default font if loading fails
-                        fontName.style.fontFamily = 'sans-serif';
+                        fontPreview.style.fontFamily = 'sans-serif';
                     });
             }
         }
         
         fontItem.appendChild(fontName);
+        fontItem.appendChild(fontPreview);
         
         // Selection handling
         fontItem.addEventListener('click', () => {
